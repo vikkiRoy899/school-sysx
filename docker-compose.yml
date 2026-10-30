@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: school-sys-backend
+    ports:
+      - "4000:4000"
+    volumes:
+      - backend-data:/app/prisma
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./dev.db
+      - PORT=4000
+      - JWT_SECRET=${JWT_SECRET:-super-secret-jwt-key-school-coaching-2026}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Admin Frontend (Next.js)
+  admin:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+    container_name: school-sys-admin
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:4000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+    driver: local
+
+networks:
+  default:
+    name: school-sys-network
