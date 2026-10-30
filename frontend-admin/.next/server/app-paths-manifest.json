@@ -1,0 +1,11 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/announcements/page": "app/announcements/page.js",
+  "/attendance/page": "app/attendance/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/exams/page": "app/exams/page.js",
+  "/fees/page": "app/fees/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/students/page": "app/students/page.js"
+}

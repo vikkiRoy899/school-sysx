@@ -1,0 +1,89 @@
+openapi: 3.0.3
+info:
+  title: School & Coaching Management System API
+  version: 1.0.0
+  description: Comprehensive Multi-tenant School & Coaching Management System REST API
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Development Server
+paths:
+  /auth/login:
+    post:
+      summary: User Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    type: object
+  /students:
+    get:
+      summary: Get all students
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of students
+  /attendance/mark:
+    post:
+      summary: Mark attendance
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Attendance recorded successfully
+  /fees/invoices:
+    get:
+      summary: Get fee invoices
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of invoices
+  /exams:
+    get:
+      summary: Get exams
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of exams
+  /timetable/class/{classId}:
+    get:
+      summary: Get class timetable
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Timetable for class
+  /communication/announcements:
+    get:
+      summary: Get announcements
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of announcements
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
