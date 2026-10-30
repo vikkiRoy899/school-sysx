@@ -23,6 +23,11 @@ nvm use          # → Node 24
 
 ## Quick start
 
+> **npm 11.16+ / npm 12:** dependency install scripts are blocked unless allowlisted.
+> The root `package.json` already ships the `allowScripts` entry, so a plain install
+> works — if you see `install scripts blocked`, see
+> [Troubleshooting](SETUP_GUIDE.md#troubleshooting).
+
 ```bash
 npm install                 # installs all three workspaces (hoisted to ./node_modules)
 cp backend/.env.example backend/.env

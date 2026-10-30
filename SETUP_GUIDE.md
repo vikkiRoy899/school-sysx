@@ -162,6 +162,33 @@ accident.
 
 ## Troubleshooting
 
+**`npm warn install-scripts … had install scripts blocked` (npm 11.16+ / npm 12)**
+
+Newer npm no longer runs dependency install scripts unless the package is listed in the
+`allowScripts` field of the root `package.json` (npm ≤ 11.15 ignores the field and runs
+everything). This repo ships that allowlist, so a fresh clone installs correctly.
+
+If the warning appears anyway — you cloned an older revision, or a dependency bump
+introduced a new package with a script — review what is asking and approve deliberately:
+
+```bash
+npm install-scripts ls                       # what is covered / pending
+npm install-scripts approve @prisma/client @prisma/engines prisma esbuild unrs-resolver
+npm install-scripts deny @scarf/scarf        # telemetry only, no build value
+npm ci                                       # re-run so the blocked scripts execute
+```
+
+Why these five matter: `@prisma/engines` downloads the query engine binary,
+`@prisma/client` generates the client, `prisma` bootstraps the CLI, and `esbuild` /
+`unrs-resolver` place their native binaries. Approving them is what makes
+`npm run db:generate` work — without it you get `@prisma/client did not initialize yet`
+and the API will not start.
+
+`allowScripts` entries here are **name-only** (`"esbuild": true`) rather than pinned to a
+version, so a patch bump does not break the install; the lockfile still pins exact
+versions. Set `strict-allow-scripts=true` in `.npmrc` if you would rather an unapproved
+script fail the install outright (useful in CI).
+
 **`@prisma/client did not initialize yet`** — run `npm run db:generate`.
 The Prisma CLI downloads engine binaries from `binaries.prisma.sh`; behind a strict
 proxy allow-list, pre-populate `PRISMA_ENGINES_MIRROR` or run generation on a networked
@@ -174,6 +201,23 @@ with `NODE_ENV=production` and no secret. Set it in `backend/.env` or the contai
 
 **Node version errors** — `nvm install 24 && nvm use` (or 22). Node 20 and older are
 unsupported from this revision onwards (see `docs/adr/0002-node-22-24-runtime.md`).
+
+## Dependency security
+
+`npm audit` reports advisories that are almost entirely in the **mobile/dev toolchain**
+(Expo SDK 51, its Babel/CLI dependencies, React Navigation 6) plus two that need major
+upgrades:
+
+| Advisory | Applies to | Status |
+| --- | --- | --- |
+| `next` — Image Optimizer DoS via `remotePatterns` | admin (direct) | Not reachable: this app uses no `next/image` and sets no `remotePatterns`. Fix requires Next 16. |
+| `tar` — hardlink path traversal | mobile build tooling (via Expo) | Fix requires Expo SDK 58. Never shipped in the server image. |
+| `prisma` / `deepmerge-ts` | backend tooling | Fix requires Prisma 7. |
+| `zod` (<4) | Expo/Babel toolchain only | The backend runs zod 4; the v3 copy is used by `babel-plugin-react-compiler`. |
+| `react-navigation`, `@xmldom/xmldom`, `cacache`, … | mobile app | Fix requires React Navigation 7 / Expo SDK 54+. |
+
+None of these are reachable from the production backend image, which ships prod
+dependencies only (see the Docker section).
 
 ## GitHub Repository
 
