@@ -2,27 +2,33 @@
   "name": "frontend-admin",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0",
+    "typecheck": "tsc --noEmit",
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^14.2.5",
+    "autoprefixer": "^10.4.21",
+    "axios": "^1.21.0",
+    "lucide-react": "^0.408.0",
+    "next": "14.2.35",
+    "postcss": "^8.5.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwindcss": "^3.4.7",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.39",
-    "axios": "^1.7.2",
-    "react-hook-form": "^7.51.5",
-    "lucide-react": "^0.408.0"
+    "react-hook-form": "^7.65.0",
+    "tailwindcss": "^3.4.19"
   },
   "devDependencies": {
-    "@types/node": "^20.14.10",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "typescript": "^5.5.3"
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.35",
+    "typescript": "^5.9.3"
   }
 }

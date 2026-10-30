@@ -32,15 +32,26 @@ app.get('/api-docs', swaggerUi.setup(swaggerSpec));
 
 // Security middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true,
-}));
+const allowedOrigins = config.corsOrigin
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    // Bare "*" cannot be combined with credentials, so only send the header
+    // when specific origins are configured.
+    origin: allowedOrigins.includes('*') ? true : allowedOrigins,
+    credentials: true,
+  })
+);
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  limit: 100,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
   message: 'Too many requests from this IP, please try again later.',
 });
 app.use(limiter);
@@ -71,7 +82,7 @@ app.use(`${API_PREFIX}/timetable`, timetableRoutes);
 app.use(`${API_PREFIX}/communication`, communicationRoutes);
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 

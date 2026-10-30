@@ -1,41 +1,56 @@
-version: '3.8'
+# Requires Docker Compose v2 (the obsolete `version:` key is intentionally omitted).
+#
+#   docker compose up -d --build        # Node 24 LTS
+#   NODE_VERSION=22 docker compose up -d --build   # Node 22 LTS
+#
+# First run: create the schema + demo data once the backend is healthy:
+#   docker compose exec backend npx prisma db push
+#   (seeding requires dev dependencies — see SETUP_GUIDE.md)
 
 services:
-  # Backend API
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
     container_name: school-sys-backend
     ports:
       - "4000:4000"
     volumes:
-      - backend-data:/app/prisma
+      - backend-data:/app/backend/prisma
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=file:./dev.db
-      - PORT=4000
-      - JWT_SECRET=${JWT_SECRET:-super-secret-jwt-key-school-coaching-2026}
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: file:./dev.db
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
+      start_period: 20s
       retries: 3
 
-  # Admin Frontend (Next.js)
   admin:
     build:
-      context: ./frontend-admin
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend-admin/Dockerfile
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+        # Inlined into the browser bundle — must be reachable from the user's browser.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
     container_name: school-sys-admin
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://backend:4000
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

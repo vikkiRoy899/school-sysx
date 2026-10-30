@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both supported LTS lines — see docs/adr/0002-node-22-24-runtime.md
+        node: [22, 24]
+
+    env:
+      DATABASE_URL: file:./dev.db
+      JWT_SECRET: ci-only-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Typecheck all workspaces
+        run: npm run typecheck
+
+      - name: Build backend
+        run: npm run build:backend
+
+      - name: Build admin
+        run: npm run build:admin
+
+      - name: Create schema
+        run: npm run db:push
