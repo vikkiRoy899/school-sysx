@@ -1,0 +1,56 @@
+# Development overlay — hot reload with source bind mounts.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+#
+# Not merged automatically: Compose only auto-loads a file named
+# docker-compose.override.yml, and a dev override must never leak into
+# production by accident.
+#
+# The workspace runs from /app (hoisted node_modules), so mounting ./backend
+# over /app/backend leaves installed dependencies and the generated Prisma
+# client intact. The database is the real ./backend/prisma/dev.db on the host,
+# so it can be inspected with sqlite3 or Prisma Studio.
+
+services:
+  migrate:
+    environment:
+      SEED: "true"
+    volumes:
+      # Skip the named volume in favour of the host file, consistently with the
+      # backend service below.
+      - ./backend/prisma:/app/backend/prisma
+
+  backend:
+    build:
+      target: build
+    command: ["npm", "run", "dev"]
+    working_dir: /app/backend
+    environment:
+      NODE_ENV: development
+      CORS_ORIGIN: http://localhost:3000
+      # Reliable file-watching for bind mounts on macOS/Windows.
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./backend:/app/backend
+      - ./backend/prisma:/app/backend/prisma
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+      - "9229:9229" # node --inspect
+    security_opt: []
+
+  admin:
+    build:
+      target: build
+    command: ["npm", "run", "dev"]
+    working_dir: /app/frontend-admin
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
+    volumes:
+      - ./frontend-admin:/app/frontend-admin
+    ports:
+      - "${ADMIN_PORT:-3000}:3000"
+    security_opt: []

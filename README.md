@@ -53,12 +53,32 @@ Demo logins (password `admin123`): `admin@testschool.com` (SUPER_ADMIN),
 ## Docker
 
 ```bash
-docker compose up -d --build                  # Node 24 images
-NODE_VERSION=22 docker compose up -d --build  # Node 22 images
-docker compose exec backend npx prisma db push
+docker compose up -d --build                   # Node 24 images
+NODE_VERSION=22 docker compose up -d --build   # Node 22 images
+docker compose run --rm -e SEED=true migrate   # load demo data
+docker compose down                            # add -v to wipe the database
+```
+
+Admin → <http://localhost:3000>, API → <http://localhost:4000>.
+
+| Service | Image | Purpose |
+| --- | --- | --- |
+| `migrate` | `backend` **build** stage | One-shot: `prisma migrate deploy` (or `db push`), optional seed |
+| `backend` | `backend` **runtime** stage | Slim, non-root, tini, prod deps only |
+| `admin` | `frontend-admin` **runtime** stage | Next.js standalone server |
+
+The API waits for `migrate` to finish and the dashboard waits for the API to be
+healthy, so a plain `up` leaves you with a working, seeded-capable stack — no
+manual `prisma db push` step.
+
+**Hot-reload development** (bind mounts + `tsx watch` + `next dev`):
+
+```bash
+npm run docker:dev      # docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 Both Dockerfiles are multi-stage and take a `NODE_VERSION` build arg (default `24`).
+Ports and the Node tag can be overridden via `.env` (see `.env.example`).
 
 ## Documentation
 

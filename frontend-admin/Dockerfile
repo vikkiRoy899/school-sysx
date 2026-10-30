@@ -3,6 +3,7 @@
 # Node 24 LTS by default; build with --build-arg NODE_VERSION=22 for Node 22 LTS.
 ARG NODE_VERSION=24
 
+# ---------------------------------------------------------------------- build
 FROM node:${NODE_VERSION}-alpine AS build
 WORKDIR /app
 
@@ -15,15 +16,20 @@ RUN npm ci --workspace=frontend-admin --include-workspace-root=false
 
 COPY frontend-admin ./frontend-admin
 
-# Baked into the client bundle at build time — must be reachable from the browser.
+# Inlined into the client bundle at build time — must be reachable from the browser.
 ARG NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build --workspace=frontend-admin
 
-# --------------------------------------------------------------------- runtime
+# -------------------------------------------------------------------- runtime
 FROM node:${NODE_VERSION}-alpine AS runtime
+
+LABEL org.opencontainers.image.title="school-sysx admin" \
+      org.opencontainers.image.description="School & Coaching Management System dashboard" \
+      org.opencontainers.image.source="https://github.com/vikkiRoy899/school-sysx"
+
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \

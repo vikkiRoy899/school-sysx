@@ -85,20 +85,80 @@ node backend/dist/index.js
 
 ## Docker
 
-Both images are multi-stage and accept a `NODE_VERSION` build arg (default `24`):
+Both images are multi-stage and accept a `NODE_VERSION` build arg (default `24`).
 
 ```bash
 docker compose up -d --build                    # Node 24 LTS
 NODE_VERSION=22 docker compose up -d --build    # Node 22 LTS
 
 docker compose logs -f backend
-docker compose exec backend npx prisma db push  # first run: create the schema
 docker compose down                             # stop
+docker compose down -v                          # stop and delete the database volume
 ```
 
-The backend volume `backend-data` is mounted at `/app/backend/prisma`, so the SQLite
-file survives rebuilds. Seeding needs dev dependencies, so run it from a local checkout
-(`npm run db:seed`) against the same database file, or extend the image.
+| Service | Built from | Behaviour |
+| --- | --- | --- |
+| `migrate` | `backend/Dockerfile` → `build` stage | Runs to completion, then exits. Applies the schema with `prisma migrate deploy` if `backend/prisma/migrations/` exists, else `prisma db push`. Seeds when `SEED=true`. |
+| `backend` | `backend/Dockerfile` → `runtime` stage | Slim production image: prod dependencies only, non-root `node` user, `tini` as PID 1, `no-new-privileges`. |
+| `admin` | `frontend-admin/Dockerfile` → `runtime` stage | Next.js standalone server (`server.js`), non-root. |
+
+Start-up order is enforced by health/completion conditions, so `up` alone gives you a
+database with the schema applied:
+
+```
+migrate (completes) → backend (healthy) → admin
+```
+
+The interesting bits:
+
+- **Why a separate migrate image?** The runtime image is pruned to production
+  dependencies and does not ship the Prisma CLI — it is ~115 MB smaller that way. The
+  `migrate` service reuses the `build` stage, which still has the CLI and `tsx`.
+- **Data** lives in the named volume `backend-data`, mounted at `/app/backend/prisma`,
+  so it survives rebuilds and `up --build`.
+- **Configuration** comes from `.env` in the repo root (Compose loads it
+  automatically): `NODE_VERSION`, `BACKEND_PORT`, `ADMIN_PORT`, `JWT_SECRET`,
+  `CORS_ORIGIN`, `SEED`. See `.env.example`.
+- **`NEXT_PUBLIC_API_URL` is baked in at build time** because it is inlined into the
+  browser bundle — it must be an address the *browser* can reach, not the Compose
+  service name. Change it and rebuild the admin image.
+
+Load demo data into an existing stack:
+
+```bash
+docker compose run --rm -e SEED=true migrate
+```
+
+Reset everything:
+
+```bash
+docker compose down -v && docker compose up -d --build
+```
+
+### Docker development (hot reload)
+
+```bash
+npm run docker:dev
+# equivalent to:
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+The overlay swaps both images to the `build` stage, bind-mounts `./backend` and
+`./frontend-admin`, runs `npm run dev` (tsx watch / next dev), seeds automatically and
+exposes the debugger on port 9229. It is deliberately *not* named
+`docker-compose.override.yml`, so it can never be applied to a production run by
+accident.
+
+### Image details
+
+| | Backend | Admin |
+| --- | --- | --- |
+| Base | `node:24-alpine` (`NODE_VERSION`) | `node:24-alpine` |
+| User | `node` (non-root) | `node` (non-root) |
+| PID 1 | `tini` | `init: true` from Compose |
+| Healthcheck | `GET /health` | `GET /login` |
+| Log rotation | `json-file`, 10 MB × 3 | `json-file`, 10 MB × 3 |
+| Graceful stop | 20 s | 15 s |
 
 ## Troubleshooting
 

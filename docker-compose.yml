@@ -1,49 +1,86 @@
-# Requires Docker Compose v2 (the obsolete `version:` key is intentionally omitted).
+# Production stack (Compose v2 — the obsolete `version:` key is intentionally omitted).
 #
-#   docker compose up -d --build        # Node 24 LTS
-#   NODE_VERSION=22 docker compose up -d --build   # Node 22 LTS
+#   docker compose up -d --build                    # Node 24 LTS
+#   NODE_VERSION=22 docker compose up -d --build    # Node 22 LTS
+#   docker compose run --rm -e SEED=true migrate    # load demo data
+#   docker compose down                             # stop (add -v to wipe the DB)
 #
-# First run: create the schema + demo data once the backend is healthy:
-#   docker compose exec backend npx prisma db push
-#   (seeding requires dev dependencies — see SETUP_GUIDE.md)
+# `migrate` runs to completion before the API starts, so `up` alone leaves you
+# with a ready-to-use database. For hot-reloading development, see
+# docker-compose.dev.yml.
+
+name: school-sys
 
 services:
+  # ---------------------------------------------------------------- schema task
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: build
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-file:./dev.db}
+      SEED: ${SEED:-false}
+    volumes:
+      - backend-data:/app/backend/prisma
+    command: ["sh", "/app/docker/migrate.sh"]
+    restart: "no"
+
+  # ------------------------------------------------------------------- REST API
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      target: runtime
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
     container_name: school-sys-backend
     ports:
-      - "4000:4000"
+      - "${BACKEND_PORT:-4000}:4000"
     volumes:
       - backend-data:/app/backend/prisma
     environment:
       NODE_ENV: production
       PORT: "4000"
-      DATABASE_URL: file:./dev.db
+      DATABASE_URL: ${DATABASE_URL:-file:./dev.db}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
+    stop_grace_period: 20s
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
       interval: 30s
       timeout: 5s
       start_period: 20s
       retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  # ------------------------------------------------------------ admin dashboard
   admin:
     build:
       context: .
       dockerfile: frontend-admin/Dockerfile
+      target: runtime
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
-        # Inlined into the browser bundle — must be reachable from the user's browser.
+        # Baked into the browser bundle — must be reachable from the user's browser.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
     container_name: school-sys-admin
+    init: true
     ports:
-      - "3000:3000"
+      - "${ADMIN_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -52,6 +89,20 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    stop_grace_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/login"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   backend-data:
